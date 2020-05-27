@@ -9,6 +9,8 @@
 #include "FirebaseESP8266.h"
 #include <time.h>
 
+//Firebase connection params, you can set up Firebase according to this guide https://circuitdigest.com/microcontroller-projects/iot-firebase-controlled-led-using-esp8266-nodemcu
+//Also, you need to create those 3 fields in the database: isControllingTemp, targetTemp and targetTempError
 #define FIREBASE_HOST "https://FIREBASEHOST.com/"
 #define FIREBASE_AUTH "FIREBASEAUTH"
 
@@ -36,6 +38,7 @@ bool pumpStatus = false;
 bool hitTargetTemp = false;
 bool wasControllingTemp = false;
 
+//Get the current time with a user friendly timestamp (UTC)
 String getCurrentTime(){
   String timestamp = "";
 
@@ -59,6 +62,7 @@ String getCurrentTime(){
   return timestamp;
 }
 
+//This function is called when the device can not acquire reliable temperature read. The pump and heater are turned off and the bi-color led start blinking red.
 void emergencyShutdown(){
   digitalWrite(RELAY_HEATER, LOW);
   digitalWrite(RELAY_PUMP, LOW);
@@ -71,6 +75,7 @@ void emergencyShutdown(){
   }
 }
 
+//Gets first reading of current time
 void setupTime(){
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     Serial.print("\nAguardando horário");
@@ -88,12 +93,14 @@ void setupTime(){
     Serial.println(getCurrentTime());
 }
 
+//With callback setup
 void configModeCallback (WiFiManager *myWiFiManager) {
   Serial.println("Entered config mode");
   Serial.println(WiFi.softAPIP());
   Serial.println(myWiFiManager->getConfigPortalSSID());
 }
 
+//Update current temperature (after getting first reading)
 void updateCurrentTemperature(){
   float diff = -100;
   int count = 0;
@@ -113,6 +120,7 @@ void updateCurrentTemperature(){
   lastTemperature = currentTemperature;
 }
 
+//Gets reliable temperature (check reading more than one time) and check if there is big difference between readings
 void getReliableTemperature(){
   int loops = 3;
   int i = 1;
@@ -142,6 +150,7 @@ void getReliableTemperature(){
   
 }
 
+//Get Firebase data
 int getSettingsFromWeb(){
   if (Firebase.getFloat(firebaseData, "/targetTemp")) {
     if  ((firebaseData.dataType() == "float") | (firebaseData.dataType() == "int")) {
@@ -173,6 +182,7 @@ int getSettingsFromWeb(){
   return 0;
 }
 
+//Records times to Firebase when the device starts controlling the temperature
 int recordStartTimeIntoWeb(){
   if (!Firebase.setString(firebaseData, "/startTime", getCurrentTime())) {
     return 1;
@@ -186,6 +196,7 @@ int recordStartTimeIntoWeb(){
   return 0;
 }
 
+//Records to Firebase the time when the device stopped controlling the temperature
 int recordStopTimeIntoWeb(){
   if (!Firebase.setString(firebaseData, "/stopTime", getCurrentTime())) {
     return 1;
@@ -193,6 +204,7 @@ int recordStopTimeIntoWeb(){
   return 0;
 }
 
+//Records to Firebase the time when the device first hit the target temperature
 int recordTargetTemperatureHitIntoWeb(){
   if (!Firebase.setString(firebaseData, "/targetTemperatureHitTime", getCurrentTime())) {
     return 1;
@@ -200,7 +212,7 @@ int recordTargetTemperatureHitIntoWeb(){
   return 0;
 }
 
-
+//Records to Firebase the current status
 int recordDataIntoWeb(){
   String currDate = getCurrentTime();
   if (!Firebase.setFloat(firebaseData, "/currentTemp", currentTemperature)) {
@@ -221,17 +233,17 @@ int recordDataIntoWeb(){
   return 0;
 }
 
+//Turn the bi-color LED to red
 void double_led_red(){
   digitalWrite(D2, HIGH);
   digitalWrite(D1, LOW);
 }
 
+//Turn the bi-color LED to green
 void double_led_green(){
   digitalWrite(D2, LOW);
   digitalWrite(D1, HIGH);
 }
-
-
 
 void setup()
 {
@@ -244,7 +256,9 @@ void setup()
 
   double_led_red();
   
-  //WiFi Setup
+  //WiFi Setup (At first will create a hot spot called "mySousVide", you have to connect to it using your pc or smartphone and put wifi credentials). Then the nodemcu will reset and try to connect to the provided wifi, if it fails, the hotspot will be created again.
+  //To configure the wifi open the browser at 192.168.4.1
+  //The wifi setting will be recorded to persintent memory, so when you turn the device on again, it will try to connect to the same wifi.
   Serial.begin(115200);
   WiFiManager wifiManager;
   wifiManager.setAPCallback(configModeCallback);
@@ -256,11 +270,14 @@ void setup()
     delay(1000);
   }
   Serial.println("Wifi Connected!");
-
+  
+  //Setup time for the first time
   setupTime();
-
+  
+  //Setup Firebase connection
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-
+  
+  //Get instructions from Firebase
   int settingStatus = 1;
   while(settingStatus == 1){
     settingStatus = getSettingsFromWeb();
@@ -300,7 +317,6 @@ void loop()
   Serial.println(targetTemp_error);
 
   if(isControllingTemp){
-    
     if(wasControllingTemp == false){
       if(recordStartTimeIntoWeb() == 0){
         wasControllingTemp = true;
