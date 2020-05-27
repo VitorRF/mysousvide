@@ -10,7 +10,7 @@
 #include <time.h>
 
 //Firebase connection params, you can set up Firebase according to this guide https://circuitdigest.com/microcontroller-projects/iot-firebase-controlled-led-using-esp8266-nodemcu
-//Also, you need to create those 3 fields in the database: isControllingTemp, targetTemp and targetTempError
+//Also, you need to create those 3 fields in the database: isControllingTemp, targetTemp and targetTempError (Firebase_realtime_database_setup.png)
 #define FIREBASE_HOST "https://FIREBASEHOST.com/"
 #define FIREBASE_AUTH "FIREBASEAUTH"
 
